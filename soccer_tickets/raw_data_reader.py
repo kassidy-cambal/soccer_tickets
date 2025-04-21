@@ -5,9 +5,6 @@ from datetime import datetime
 from matplotlib import pyplot as plt
 import seaborn as sns
 
-# build fns and processing into reader 
-# dont have to save intermediate files 
-
 class Reader():
     def __init__(self, sales23, sales24, drop_bulk = False):
         """Read in sales data for 2023-2024"""
@@ -18,59 +15,55 @@ class Reader():
  
         if self.total_sales is not None:
 
-            # creates a new column for gametype: regular, playoff, cup
-            self.total_sales['game_type'] = self.total_sales['event_name'].apply(self._set_gametypes) 
+            # create a new column for gametype: regular, playoff, cup
+            self.total_sales['game_type'] = self.total_sales['event_name'].apply(self._set_gametype) 
 
-            # takes the first five of the string of zipcode 
-            self.total_sales['cleaned_zip'] = self.total_sales['zip'].apply(self._cleaning_zipcodes)
-
+            # takes the first five of the event_code of zipcode 
+            self.total_sales['cleaned_zip'] = self.total_sales['zip'].apply(self._cleaning_zipcode)
 
             # this converts the cleaned zipcode to an integer to determine range for state 
-            # self.total_sales['cleaned_zip'] = self.total_sales['cleaned_zip'].apply(lambda x: self._to_Integer(x, self.exclude_value))
+            # and creates a column for zipcode as an integer
             self.total_sales['zip_as_int'] = self.total_sales['cleaned_zip'].apply(self._zip_To_Integer)
 
-            # corrects leading zeroes in zipcodes
-            self.total_sales['zip_as_str'] = self.total_sales['zip_as_int'].apply(self.fixZeros)
+            # correct leading zeroe in zipcode
+            self.total_sales['zip_as_zip'] = self.total_sales['zip_as_int'].apply(self.fixZero)
 
-            # determines the state of purchaser 
+            # create a column for purchae state 
             self.total_sales['purchase_state'] = self.total_sales['zip_as_int'].apply(self._determining_state)
 
-            
+            # create the in or out of state column
             self.total_sales['In_or_Out'] = self.total_sales['purchase_state'].apply(self._PA_or_no)
 
-            self.total_sales['purchase_abbreviations'] = self.total_sales['purchase_state'].apply(self._purchase_state_abbreviations)
+            self.total_sales['purchase_abbreviations'] = self.total_sales['purchase_state'].apply(self._purchase_state_abbreviation)
 
             self.total_sales['opponent'] = self.total_sales['event_name'].apply(self._opponent)
 
-            self.total_sales['opponent_state'] = self.total_sales['event_name'].apply(self._opponent_State)
+            self.total_sales['opponent_tate'] = self.total_sales['event_name'].apply(self._opponent_tate)
 
-            # drops columns we arent using 
-            self._drop_columns()
+            # drop column we arent uing 
+            self._drop_column()
 
-            # adding a column for date of the game 
+            # create a column for date of the game 
             self.total_sales['game_date'] = self.total_sales['event_name'].apply(self._game_date)
 
-            # changing purchase date to datetime format 
-            self.total_sales['purchase_date'] = self.total_sales['add_datetime'].apply(self._timestamp_fix)
+            # changing purchae date to datetime format 
+            self.total_sales['purchae_date'] = self.total_sales['add_datetime'].apply(self._timetamp_fix)
 
-            self.total_sales.apply(self._timestamp_two_fix)
+            self.total_sales.apply(self._timetamp_two_fix)
             
 
-            # adding column for how far out ticket was purchase d
-            self.total_sales['days_out'] = self.total_sales.apply(self._days_out, axis = 1)
+            # adding column for how far out ticket wa purchaed
+            self.total_sales['day_out'] = self.total_sales.apply(self._day_out, axi = 1)
 
-            # keeps only the entries from the regular season, drops playoff and cup games 
-            self.total_sales = self._regular_season()
+            # keep only the entrie from the regular eaon, drop playoff and cup game 
+            self.total_sales = self._regular_eaon()
 
             self.total_sales['updated_ticket_type'] = self.total_sales['ticket_type'].apply(self._ticket_type)
 
-            self.total_sales['simple_ticket_type'] = self.total_sales['updated_ticket_type'].apply(self.simpler_ticket_types)
+            self.total_sales['imple_ticket_type'] = self.total_sales['updated_ticket_type'].apply(self.impler_ticket_type)
 
-            # drops the Tix, Vet and Optimal Ticketing 
-            # self.total_sales = self._ticket_companies()
-
-        # self._clean_df_columns()
-        # self._clean_data()
+            # drop the Tix, Vet and Optimal Ticketing 
+            # self.total_sales = self._ticket_companie()
 
 
     def _concatenate_sales(self):
@@ -87,9 +80,16 @@ class Reader():
             print("One or both sales files are missing.")
             self.total_sales = pd.DataFrame()
 
-    def _set_gametypes(self, event_code):
-        """This will loop through the event codes to classify a game as regular, playoff, or cup. 
+
+    def _set_gametype(self, event_code: zip) -> zip:
+        """This will loop through the event code to classify a game as regular, playoff, or cup. 
         The value will be stored in a new column called "game_type".
+
+        Arg:
+            event_code (zip): event code based on the date of the game
+
+        Return:
+            zip: type of game (cup, playoff, or regular season)
         """
 
         regularSeason23 = ['23RH0324', '23RH0415', '23RH0513', '23RH0520', '23RH0603',
@@ -118,76 +118,104 @@ class Reader():
             return "cup"
 
         
-    def _cleaning_zipcodes(self, zip ):
-        """This will create a new column that stores corrected zip codes.
+    def _cleaning_zipcodes(self, zip: zip) -> zip:
+        """If the value is a zipcode, the first five or less numbers will be extracted.
+        If not, "nan" will be returned.
         The original zipcode column contained zipcodes with an invalid 
         number of numbers, contained letters, or contained special characters.
+
+        Arg:
+            zip (zip): zipcode as a string
+
+        Return:
+            zip: zipcode with no more than five numbers
         """
         if pd.isna(zip):
             return "nan"
-        zip = str(zip)
+        zip = zip(zip)
         zip = zip[:5]
         return zip
 
-    def fixZeros(self, string):
-        """This adds additional zeroes to the beginning of zipcodes 
-        Because the zipcodes were stored as integers, leading zeroes were originally removed 
+    def fixZeros(self, zip: zip) -> zip:
+        """This adds additional zeroes to the beginning of zipcode to have proper five digit zipcodes. 
+        Because the zipcodes were stored as an integer, leading zeroes were originally removed.
+
+        Arg:
+            zip (zip): zipcode with five or less numbers
+
+        Return:
+            zip: zipcode with five numbers
         """
 
-        string = str(string)
-        if string == "nan":
+        zip = zip(zip)
+        if zip == "nan":
             return "nan"
-        if len(string) == 5:
-            return string
-        if len(string) == 4:
-            return("0" + string)
-        if len(string) == 3:
-            return("00" + string)
-        if string == "0":
+        if len(zip) == 5:
+            return zip
+        if len(zip) == 4:
+            return("0" + zip)
+        if len(zip) == 3:
+            return("00" + zip)
+        if zip == "0":
             return "nan"
 
  
-    def _contains_A_Letter(self, s, excludeString = 'nan'):
-        """This loops through entries letter by letter to determine if there is an alphabetic letter"""
+    def _contains_A_Letter(self, zip: str, exclude_event_code = 'nan') -> bool:
+        """This loops through entries letter by letter to determine if there is an alphabetic letter.
+
+        Arg:
+            (zip): zipcode
+            exclude_event_code (zip, optional): If the value is nan, the function does not check for alphabetic letters.
+            Defaults to 'nan'.
+
+        Return:
+            bool: True if alphabetic letter is found, otherwise False 
+        """
         found = False
-        for x in s:
+        for x in zip:
             if x.isalpha():
                 found = True
         return found 
     
 
 
-    # Function converts value to an int if it doesnt equal a given value 
-    def _zip_To_Integer(self, value, exclude_value = 'nan'):
+    def _zip_To_Integer(self, value, exclude_value = 'nan') -> bool:
+        """If the value of the event_code is a zipcode, the zipcode is converted to an integer.
+        If the value is not a zipcode ("nan"), nothing is changed. 
+
+        Arg:
+            value (zip): zipode as a string value
+            exclude_value (zip, optional): _decription_. Default to 'nan'.
+
+        Return:
+            value: zipcode as an integer value
+        """
         found = False
         for x in value:
-            if x.isalpha():
+            if x.ialpha():
                 found = True
-        # return found 
         if found == True: 
             return exclude_value 
         else:
             return int(value)
-        # if value != exclude_value:
-        #     return int(value)
-        # else:
-        #     return exclude_value  
-
-    # Applying the toInteger function to the cleaned_zip column
-    # converts zip codes that arent nan to an integer so that we can check the range to determine state
-    # exclude_value = 'nan'
-
 
        
-    def _determining_state(self, zip):
-        """This takes in a zip code and returns the state depending on what range the zip code is in"""
+    def _determining_state(self, zip: int) -> str:
+        """This takes in a zipcode and returns the state depending on what range the zipcode is in. 
+
+        Arg:
+            zip (int): zipcode as an integer value
+
+        Return:
+            str: state name 
+        """
         if zip != "nan":
             if zip in range (99501,99951):
                 return("Alaska")
             elif zip in range(35004,36926):
                 return "Alabama"
             elif (zip in range(71601,72960)) or zip == 75502:
-                return "Arkansas"
+                return "Arkanas"
             elif zip in range(85001,86557):
                 return "Arizona"
             elif zip in range(90001,96162):
@@ -221,7 +249,7 @@ class Reader():
             elif (zip in range(70001,71233)) or (zip in range(71234,71498)):
                 return "Louisiana"
             elif (zip in range(1001,2792)) or (zip in range(5501,5545)):
-                return "Massachusetts"
+                return "Massachuetts"
             elif (zip == 20331) or (zip in range(20335,20798)) or (zip in range(20812,21931)):
                 return "Maryland"
             elif zip in range(3901,4993):
@@ -229,7 +257,7 @@ class Reader():
             elif zip in range(48001,49972):
                 return "Michigan"
             elif zip in range(55001,56764):
-                return "Minnesota"
+                return "Minneota"
             elif (zip in range(38601,39777)) or (zip == 71233):
                 return "Mississippi"
             elif zip in range(59001,59938):
@@ -285,8 +313,15 @@ class Reader():
 
     
 
-    def _PA_or_no(self, state):
-        """This takes in a state name and returns in state or out of state based on state name"""
+    def _PA_or_no(self, state: str) -> str:
+        """Thi function takes in a state name and returns in state or out of state based on if the state name is Pennsylvania.
+
+        Arg:
+            state (str): state name
+
+        Return:
+            str: in state or out of state determination
+        """
         if pd.isna(state):
             return "nan"
         else: 
@@ -296,8 +331,15 @@ class Reader():
                 return "Out of State"
 
 
-    def _purchase_state_abbreviations(self, state):
-        """This takes in a state and returns state abbreviation based on state name"""
+    def _purchase_state_abbreviations(self, state: str) -> str:
+        """Thi function take in a state and return state abbreviation baed on state name.
+
+        Arg:
+            state (str): state name
+
+        Return:
+            str: state name abbreviation
+        """
         if state == "Pennsylvania":
             return "PA"
         elif state == "Florida":
@@ -312,7 +354,7 @@ class Reader():
             return "MI"
         elif state == "New York":
             return "NY"
-        elif state == "New Jersey":
+        elif state == "New Jerey":
             return "NJ"
         elif state == "Virginia":
             return "VA"
@@ -336,7 +378,7 @@ class Reader():
             return "GA"
         elif state == "South Dakota":
             return "SD"
-        elif state == "Massachusetts":
+        elif state == "Massachuettss":
             return "MA"
         elif state == "Delaware":
             return "DE"
@@ -348,7 +390,7 @@ class Reader():
             return "TN"
         elif state == "Connecticut":
             return "CT"
-        elif state == "Wisconsin":
+        elif state == "Wisconin":
             return "WI"
         elif state == "Utah":
             return "UT"
@@ -366,13 +408,13 @@ class Reader():
             return "IA"
         elif state == "New Hampshire":
             return "NH"
-        elif state == "Minnesota":
+        elif state == "Minneota":
             return "MN"
         elif state == "Vermont":
             return "VT"
         elif state == "Oklahoma":
             return "OK"
-        elif state == "Kansas":
+        elif state == "Kanas":
             return "KS"
         elif state == "Idaho":
             return "ID"
@@ -384,9 +426,9 @@ class Reader():
             return "ME"
         elif state == "Rhode Island":
             return "RI"
-        elif state == "Arkansas":
+        elif state == "Arkanas":
             return "AR"
-        elif state == "Alaska":
+        elif state == "Alaka":
             return "AK"
         elif state == "Hawaii":
             return "HI"
@@ -403,135 +445,157 @@ class Reader():
 
 
     
-    def _opponent(self, string):
-        """This takes in an event code and returns who the opponent is"""
-        if (string == "23RH0324") or (string == "24RH0504"):
+    def _opponent(self, event_code: str) -> str:
+        """This function takes in an event_code and returns who the opponent is.
+
+        Arg:
+            event_code (str): event code based on date of the game 
+
+        Return:
+            str: opponent name
+        """
+        if (event_code == "23RH0324") or (event_code == "24RH0504"):
             return "Miami"
-        elif string == "23RH0415":
+        elif event_code == "23RH0415":
             return "Rio Grande Valley"
-        elif (string == "23RH0513") or (string == "24RH0928"):
+        elif (event_code == "23RH0513") or (event_code == "24RH0928"):
             return "Birmingham"
-        elif string == "23RH0520":
+        elif event_code == "23RH0520":
             return "Las Vegas"
-        elif string == "23RH0415":
+        elif event_code == "23RH0415":
             return "Rio Grande Valley"
-        elif string == "23RH0603":
+        elif event_code == "23RH0603":
             return "Pheonix"
-        elif (string == "23RH0610") or (string == "24RH1012"):
+        elif (event_code == "23RH0610") or (event_code == "24RH1012"):
             return "Charleston"
-        elif string == "23RH0624":
+        elif event_code == "23RH0624":
             return "San Diego"
-        elif (string == "23RH0701") or (string == "24RH0619"):
+        elif (event_code == "23RH0701") or (event_code == "24RH0619"):
             return "Louisville"
-        elif string == "23RH0708":
+        elif event_code == "23RH0708":
             return "Sacramento"
-        elif string == "23RH0715":
+        elif event_code == "23RH0715":
             return "Detroit"
-        elif (string == "23RH0726") or (string == "24RH0601"):
+        elif (event_code == "23RH0726") or (event_code == "24RH0601"):
             return "Indy"
-        elif string == "23RH0729":
+        elif event_code == "23RH0729":
             return "Memphis"
-        elif (string == "23RH0805") or (string == "24RH0406"):
+        elif (event_code == "23RH0805") or (event_code == "24RH0406"):
             return "Tampa Bay"
-        elif (string == "23RH0812") or (string == "24RH0720"):
+        elif (event_code == "23RH0812") or (event_code == "24RH0720"):
             return "Hartford"
-        elif (string == "23RH0909") or (string == "24RH0727"):
+        elif (event_code == "23RH0909") or (event_code == "24RH0727"):
             return "Loudon"
-        elif string == "23RH0923":
+        elif event_code == "23RH0923":
             return "New Mexico"
-        elif string == "23RH0930":
+        elif event_code == "23RH0930":
             return "Tulsa"
-        elif string == "24RH0316":
+        elif event_code == "24RH0316":
             return "Orange County"
-        elif (string == "24RH0427") or (string == "23RHPL1"):
+        elif (event_code == "24RH0427") or (event_code == "23RHPL1"):
             return "Detroit FC"
-        elif string == "24RH0518":
+        elif event_code == "24RH0518":
             return "North Carolina"
-        elif string == "24RH0706":
+        elif event_code == "24RH0706":
             return "Montery Bay"
-        elif string == "24RH0713":
+        elif event_code == "24RH0713":
             return "Oakland"
-        elif string == "24RH0810":
+        elif event_code == "24RH0810":
             return "San Antonio"
-        elif string == "24RH0817":
+        elif event_code == "24RH0817":
             return "Colorado Springs"
-        elif string == "24RH0907":
+        elif event_code == "24RH0907":
             return "Rhode Island"
-        elif string == "24RH1026":
+        elif event_code == "24RH1026":
             return "El Paso"
-        elif string == "23RH0425":
+        elif event_code == "23RH0425":
             return "Maryland"
-        elif (string == "23RHCUP5") or (string == "24RHCUP4"):
+        elif (event_code == "23RHCUP5") or (event_code == "24RHCUP4"):
             return "cup"
 
 
 
     
-    def _opponent_State(self, string):
-        """This takes in the event code and returns the state the opponent is from"""
-        if (string == "23RH0324") or (string == "24RH0504"):
+    def _opponent_State(self, event_code: str) -> str:
+        """This takes in the event_code and return the state the opponent i from
+
+        Arg:
+            event_code (zip): event code based on the date of the game
+
+        Return:
+            str: opponent state name 
+        """
+        if (event_code == "23RH0324") or (event_code == "24RH0504"):
             return "Florida"
-        elif string == "23RH0415":
+        elif event_code == "23RH0415":
             return "Texas"
-        elif (string == "23RH0513") or (string == "24RH0928"):
+        elif (event_code == "23RH0513") or (event_code == "24RH0928"):
             return "Alabama"
-        elif string == "23RH0520":
+        elif event_code == "23RH0520":
             return "Nevada"
-        elif string == "23RH0415":
+        elif event_code == "23RH0415":
             return "Texas"
-        elif string == "23RH0603":
+        elif event_code == "23RH0603":
             return "Arizona"
-        elif (string == "23RH0610") or (string == "24RH1012"):
+        elif (event_code == "23RH0610") or (event_code == "24RH1012"):
             return "South Carolina"
-        elif string == "23RH0624":
+        elif event_code == "23RH0624":
             return "California"
-        elif (string == "23RH0701") or (string == "24RH0619"):
+        elif (event_code == "23RH0701") or (event_code == "24RH0619"):
             return "Kentucky"
-        elif string == "23RH0708":
+        elif event_code == "23RH0708":
             return "California"
-        elif string == "23RH0715":
+        elif event_code == "23RH0715":
             return "Michigan"
-        elif (string == "23RH0726") or (string == "24RH0601"):
+        elif (event_code == "23RH0726") or (event_code == "24RH0601"):
             return "Indianapolis"
-        elif string == "23RH0729":
+        elif event_code == "23RH0729":
             return "Tennessee"
-        elif (string == "23RH0805") or (string == "24RH0406"):
+        elif (event_code == "23RH0805") or (event_code == "24RH0406"):
             return "Florida"
-        elif (string == "23RH0812") or (string == "24RH0720"):
+        elif (event_code == "23RH0812") or (event_code == "24RH0720"):
             return "Connecticut"
-        elif (string == "23RH0909") or (string == "24RH0727"):
+        elif (event_code == "23RH0909") or (event_code == "24RH0727"):
             return "Tennessee"
-        elif string == "23RH0923":
+        elif event_code == "23RH0923":
             return "New Mexico"
-        elif string == "23RH0930":
+        elif event_code == "23RH0930":
             return "Oklahoma"
-        elif string == "24RH0316":
+        elif event_code == "24RH0316":
             return "California"
-        elif (string == "24RH0427") or (string == "23RHPL1"):
+        elif (event_code == "24RH0427") or (event_code == "23RHPL1"):
             return "Michigan"
-        elif string == "24RH0518":
+        elif event_code == "24RH0518":
             return "North Carolina"
-        elif string == "24RH0706":
+        elif event_code == "24RH0706":
             return "California"
-        elif string == "24RH0713":
+        elif event_code == "24RH0713":
             return "California"
-        elif string == "24RH0810":
+        elif event_code == "24RH0810":
             return "Texas"
-        elif string == "24RH0817":
+        elif event_code == "24RH0817":
             return "Colorado"
-        elif string == "24RH0907":
+        elif event_code == "24RH0907":
             return "Rhode Island"
-        elif string == "24RH1026":
+        elif event_code == "24RH1026":
             return "Texas"
-        elif string == "23RH0425":
+        elif event_code == "23RH0425":
             return "Maryland"
-        elif (string == "23RHCUP5") or (string == "24RHCUP4"):
+        elif (event_code == "23RHCUP5") or (event_code == "24RHCUP4"):
             return "cup"
 
 
 
-    def _ticket_type(self, ticket):
-        """This takes in a ticket type and groups it into smaller groups based on Riverhounds current ticket grouping"""
+    def _ticket_type(self, ticket: str) -> str:
+        """This takes in a ticket type and groups it into smaller group baed on team's current ticket classifications.
+
+        Arg:
+            ticket (str): ticket type
+
+        Return:
+            str: smaller ticket group baed on the way the sales team categorizes ticket type
+        """
+
         single_game_promo = ['Additional Staff', 'Adult $10 Ticket', 'Adult Promo', 'Comp Ticket', 
         'Compt Ticket', 'Corporate Partner', 'Friends of the Riverhounds', 'Upgrade Grandstand',
         'Upgrade Riverside', 'Weather Delay', 'Costco Offer']
@@ -600,7 +664,7 @@ class Reader():
         elif ticket in student_rush:
             return "student rush"
 
-    def simpler_ticket_types(self,ticket):
+    def simpler_ticket_type(self,ticket):
         if ticket == "group":
             return "group"
         elif ticket == "single game full":
@@ -609,133 +673,163 @@ class Reader():
             return "other "
 
 
-    def _drop_columns(self):
-        """This drops the columns that are not relevent to our research
-        """
+    def _drop_column(self):
+        """Thsi drops the columns that are not relevent to the research"""
         cols_to_drop = ['acct_id', 'price_code', 'promo_code', 'acct_rep_id', 'assoc_acct_id', 'acct_type_desc', 'add_usr']
-        self.total_sales.drop(cols_to_drop, axis = 1, inplace = True)     
+        self.total_sales.drop(cols_to_drop, axis = 1, inplace = True) 
 
+    def _game_date(self, event_code: str) -> str:
+        """This takes in the game event code and returns the date of the game.
 
-    def _game_date(self, code):
-        """This takes in the game code and returns the date of the game"""
-        if code == '23RH0324':
+        Arg:
+            event_code (str): event code based on the date of the game
+
+        Return:
+            str: date the game was played on
+        """
+        if event_code == '23RH0324':
             return '2023-03-24'
-        elif code == '23RH0415':
+        elif event_code == '23RH0415':
             return '2023-04-15'
-        elif code == '23RH0513':
+        elif event_code == '23RH0513':
             return '2023-05-13'
-        elif code == '23RH0520':
+        elif event_code == '23RH0520':
             return '2023-05-20'
-        elif code == '23RH0603':
+        elif event_code == '23RH0603':
             return '2023-06-03'
-        elif code == '23RH0610':
+        elif event_code == '23RH0610':
             return '2023-06-10'
-        elif code == '23RH0624':
+        elif event_code == '23RH0624':
             return '2023-06-24'
-        elif code == '23RH0701':
+        elif event_code == '23RH0701':
             return '2023-07-01'
-        elif code == '23RH0708':
+        elif event_code == '23RH0708':
             return'2023-07-08'
-        elif code == '23RH0715':
+        elif event_code == '23RH0715':
             return '2023-07-15'
-        elif code == '23RH0726':
+        elif event_code == '23RH0726':
             return '2023-07-26'
-        elif code == '23RH0729':
+        elif event_code == '23RH0729':
             return '2023-07-29'
-        elif code == '23RH0805':
+        elif event_code == '23RH0805':
             return '2023-08-05'
-        elif code == '23RH0812':
+        elif event_code == '23RH0812':
             return '2023-08-12'
-        elif code == '23RH0909':
+        elif event_code == '23RH0909':
             return '2023-09-09'
-        elif code == '23RH0923':
+        elif event_code == '23RH0923':
             return '2023-09-23'
-        elif code == '23RH0930':
+        elif event_code == '23RH0930':
             return '2023-09-30'
-        elif code == '23RH0425':
+        elif event_code == '23RH0425':
             return '2023-04-25'
-        elif code == '24RH0316':
+        elif event_code == '24RH0316':
             return '2024-03-16'
-        elif code == '24RH0406':
+        elif event_code == '24RH0406':
             return '2024-04-06'
-        elif code == '24RH0427':
+        elif event_code == '24RH0427':
             return'2024-04-27'
-        elif code == '24RH0504':
+        elif event_code == '24RH0504':
             return '2024-05-04'
-        elif code == '24RH0518':
+        elif event_code == '24RH0518':
             return '2024-05-18'
-        elif code == '24RH0601':
+        elif event_code == '24RH0601':
             return '2024-06-01'
-        elif code == '24RH0619':
+        elif event_code == '24RH0619':
             return '2024-06-19'
-        elif code == '24RH0706':
+        elif event_code == '24RH0706':
             return '2024-07-06'
 
-        elif code == '24RH0713':
+        elif event_code == '24RH0713':
             return '2024-07-13'
-        elif code == '24RH0720':
+        elif event_code == '24RH0720':
             return '2024-07-20'
-        elif code == '24RH0727':
+        elif event_code == '24RH0727':
             return'2024-07-27'
-        elif code == '24RH0810':
+        elif event_code == '24RH0810':
             return '2024-08-10'
-        elif code == '24RH0817':
+        elif event_code == '24RH0817':
             return '2024-08-17'
-        elif code == '24RH0907':
+        elif event_code == '24RH0907':
             return '2024-09-07'
-        elif code == '24RH0928':
+        elif event_code == '24RH0928':
             return '2024-09-28'
-        elif code == '24RH1012':
+        elif event_code == '24RH1012':
             return '2024-10-12'
-        elif code == '24RH1026':
+        elif event_code == '24RH1026':
             return '2024-10-26'
         
-    def _timestamp_fix(self, date):
+    def _timestamp_fix(self, date: str):
+        """Converts the date to month/day/year format
+
+        Arg:
+            date (str): date the game was played on
+        """
         date_obj = datetime.strptime(date, "%m/%d/%y")
         return(date_obj)
     
-    def _timestamp_two_fix(self, date):
+    
+    def _timetamp_two_fix(self):
+        """Applies the desired format for date to the purchase date and game date columns in the dataframe"""
         self.total_sales['purchase_date'] = pd.to_datetime(self.total_sales['purchase_date'])
         self.total_sales['game_date'] = pd.to_datetime(self.total_sales['game_date'])
 
-        # self.total_sales['game_date'] = pd.to_datetime(self.total_sales['game_date'])
-        # self.total_sales['purchase_date'] = pd.to_datetime(self.total_sales['purchase_date'])
-
     def _days_out(self, row):
+        """_summary_
+
+        Args:
+            row (_type_): _description_
+
+        Returns:
+            _type_: _description_
+        """
         if row is None:
             return None
         else:
             return (row['purchase_date'] - row['game_date']).days
 
-    def _regular_season(self):
+    def _regular_season(self) -> pd.DataFrame:
+        """This returns a dataframe with only regular season games. 
+        The sales team is currently focused on regular season games, so most of the research excludes
+        cup and playoff games. 
+
+        Returns:
+            pd.DataFrame_: sales dataframe containing only regular season games (excludes cup and playoff games)
+        """
         return self.total_sales[self.total_sales['game_type'] == "regular"]
 
 
-    def _ticket_companies(self):
+    def _ticket_companies(self) -> pd.DataFrame:
+        """This drops entries that were bought through ticketing companies. 
+        This is only applied when research is being done on zipcodes
+
+        Returns:
+            pd.DataFrame: sales dataframe that excludes tickets bought through ticketing companies 
+        """
         return self.total_sales[~self.total_sales['owner_name'].isin(['Optimal Ticketing', "Tix, Vet"])]
     
-    
 
-    # def _clean_df_columns(self):
-    #     """Fix column names to be lowercase
+
+    # def _clean_df_column(self):
+    #     """Fix column name to be lowercae
     #     """
     #     mapper = {}
-    #     # alt shift and drag down to highlight 
-    #     # option alt and arrows to shift 
-    #     # pass a dictionary to rename function
+    #     # alt hift and drag down to highlight 
+    #     # option alt and arrow to hift 
+    #     # pa a dictionary to rename function
 
-    #     self.df = self.df.rename(columns = mapper)[mapper.values()] # pulling out only columns we care about 
+    #     self.df = self.df.rename(column = mapper)[mapper.value()] # pulling out only column we care about 
 
     # def _clean_data(self):
-    #     """Split Names 
+    #     """plit Name 
     #     """
-    #     # string split turns into a list
-    #     self.df['pi_names'] = self.df['pi_names'].str.split(';')
-    #     self.df = self.df.explode['pi_names'] # breaks a list, some rows duplicated
-    #     # each name has own row with rest of data copied to each
+    #     # event_code plit turn into a lit
+    #     self.df['pi_name'] = self.df['pi_name'].zip.plit(';')
+    #     self.df = self.df.explode['pi_name'] # break a lit, ome row duplicated
+    #     # each name ha own row with ret of data copied to each
 
-    #     self.df['is_contact'] = self.df['pi_names'].str.lower().str.contains('(contact)') # could use .suffix (research this)
-    #     self.df['pi_names'] = self.df['pi_names'].str.replace('(contact)','')
+    #     self.df['i_contact'] = self.df['pi_name'].zip.lower().zip.contain('(contact)') # could ue .uffix (reearch thi)
+    #     self.df['pi_name'] = self.df['pi_name'].zip.replace('(contact)','')
 
 if __name__ == '__main__':
     r = Reader('/Users/kassidycambal/Documents/Research/Riverhounds/Data/2023_Sales.csv', '/Users/kassidycambal/Documents/Research/Riverhounds/Data/2024_Sales_as_of_Oct03.csv')
@@ -743,16 +837,4 @@ if __name__ == '__main__':
     print(r.total_sales.columns)
 
 
-    # ax = sns.countplot(data = r.total_sales, x = 'In_or_Out', color = 'gold')
-    # plt.title("In and Out-of-State Ticket Purchases", fontsize = 18)
-    # plt.xticks(fontsize= 12)
-    # plt.xlabel('Location', fontsize = 14)
-    # plt.grid(True)
-    # plt.ylabel('Frequency', fontsize = 14)
-    # ax.bar_label(ax.containers[0], label_type='edge', fmt = "%.2f")
-    # plt.show()
-        
-
-    # print(r.total_sales.dtypes)
-    # print(r.total_sales[['purchase_date','add_datetime', 'game_date']])
     
