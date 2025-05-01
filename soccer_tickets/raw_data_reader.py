@@ -314,7 +314,7 @@ class Reader():
     
 
     def _PA_or_no(self, state: str) -> str:
-        """Thi function takes in a state name and returns in state or out of state based on if the state name is Pennsylvania.
+        """This function takes in a state name and returns in state or out of state based on if the state name is Pennsylvania.
 
         Arg:
             state (str): state name
@@ -446,7 +446,7 @@ class Reader():
 
     
     def _opponent(self, event_code: str) -> str:
-        """This function takes in an event_code and returns who the opponent is.
+        """This function takes in an event code and returns who the opponent is.
 
         Arg:
             event_code (str): event code based on date of the game 
@@ -664,7 +664,7 @@ class Reader():
         elif ticket in student_rush:
             return "student rush"
 
-    def simpler_ticket_type(self,ticket):
+    def simpler_ticket_type(self, ticket: str) -> str:
         if ticket == "group":
             return "group"
         elif ticket == "single game full":
